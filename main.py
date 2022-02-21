@@ -32,8 +32,27 @@ def chart(args, data):
 
     debit = []
     intervals = data['intervals']
-    for i in intervals:
-        debit.append(i['sum']['bits_per_second'])
+    import csv
+    import os
+
+    dest = 'csv_files'
+    if args.output:
+        dest = args.output
+    os.makedirs(dest, exist_ok=True)
+    filename = os.path.splitext(os.path.basename(args.input))[0]
+    dest_path = os.path.join(dest, f"{filename}.csv")
+
+    start_timestamp = float(data['start']['timestamp']['timesecs']) # Starting timestamp in seconds
+    with open(dest_path, 'w', newline='') as datafile:
+        datawriter = csv.writer(datafile)
+        datawriter.writerow(['timestamp', 'bits_per_second']) # Headers
+        for i in intervals:
+            bps = i['sum']['bits_per_second']
+            start_sec = float(i['sum']['start'])
+            datawriter.writerow([start_timestamp + start_sec, bps])
+            debit.append(bps)
+
+    return # Skip plot
 
     plt.plot(debit, label='Bandwitdh (per second)')
 
@@ -65,20 +84,25 @@ def be_verbose(args, data):
 def main(argv):
     parser = argparse.ArgumentParser(description='Simple python iperf JSON data vizualiser. Use -J option with iperf to have a JSON output.')
     parser.add_argument('input', nargs='?', help='JSON output file from iperf')
+    parser.add_argument('-o', '--output', nargs='?', help='Output folder')
     parser.add_argument('-a', '--ema', help='Exponential moving average used to smooth the bandwidth. Default at 9.', type=int)
     parser.add_argument('-e', '--expectedbw', help='Expected bandwidth to be plotted in Mb.')
     parser.add_argument('-v', '--verbose', help='Increase output verbosity', action='store_true')
     parser.add_argument('-l', '--log', help='Plot will be in logarithmic scale', action='store_true')
     args = parser.parse_args(argv)
-    with open(args.input) as f:
-        data = json.load(f)
-        if args.verbose:
-            be_verbose(args, data)
-        if data['start']['test_start']['protocol'] == 'UDP':
-            args.protocol = 'udp'
-        else:
-            args.protocol = 'tcp'
-        chart(args, data)
+    try:
+        with open(args.input) as f:
+            data = json.load(f)
+            if args.verbose:
+                be_verbose(args, data)
+            if data['start']['test_start']['protocol'] == 'UDP':
+                args.protocol = 'udp'
+            else:
+                args.protocol = 'tcp'
+            chart(args, data)
+    except:
+        print(args.input)
+        raise
 
 
 if __name__ == '__main__':
