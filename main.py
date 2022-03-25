@@ -1,7 +1,10 @@
-import json
+import jsonstream
 import matplotlib.pyplot as plt
 import sys
 import argparse
+
+import csv
+import os
 
 
 def ema(data, window):
@@ -17,7 +20,7 @@ def ema(data, window):
     return ema
 
 
-def chart(args, data):
+def chart(args, data, datawriter):
     # Setting the default values
     expected_bandwidth = 0
     ema_window = 9
@@ -32,27 +35,28 @@ def chart(args, data):
 
     debit = []
     intervals = data['intervals']
-    import csv
-    import os
 
-    dest = 'csv_files'
-    if args.output:
-        dest = args.output
-    os.makedirs(dest, exist_ok=True)
-    filename = os.path.splitext(os.path.basename(args.input))[0]
-    dest_path = os.path.join(dest, f"{filename}.csv")
+    if args.protocol == 'udp':
+        datawriter.writerow(['timestamp', 'bits_per_second', 'jitter_ms', 'lost_packets', 'packets', 'lost_percent']) # Headers
+    else:
+        datawriter.writerow(['timestamp', 'bits_per_second']) # Headers
 
     start_timestamp = float(data['start']['timestamp']['timesecs']) # Starting timestamp in seconds
-    with open(dest_path, 'w', newline='') as datafile:
-        datawriter = csv.writer(datafile)
-        datawriter.writerow(['timestamp', 'bits_per_second']) # Headers
-        for i in intervals:
-            bps = i['sum']['bits_per_second']
-            start_sec = float(i['sum']['start'])
-            datawriter.writerow([start_timestamp + start_sec, bps])
-            debit.append(bps)
+    for i in intervals:
+        sum_entry = i['sum']
+        row = []
+        bps = sum_entry['bits_per_second']
+        row.append(start_timestamp + float(sum_entry['start'])) # Timestamp
+        row.append(bps)
+        if args.protocol == 'udp' and 'jitter_ms' in sum_entry:
+            row.append(sum_entry['jitter_ms'])
+            row.append(sum_entry['lost_packets'])
+            row.append(sum_entry['packets'])
+            row.append(sum_entry['lost_percent'])
+        datawriter.writerow(row)
+        #debit.append(bps)
 
-    return # Skip plot
+    return # Skip plotting
 
     plt.plot(debit, label='Bandwitdh (per second)')
 
@@ -74,6 +78,26 @@ def chart(args, data):
     plt.show()
 
 
+def chart_objs(args, data):
+    dest = 'csv_files'
+    if args.output:
+        dest = args.output
+    os.makedirs(dest, exist_ok=True)
+    filename = os.path.splitext(os.path.basename(args.input))[0]
+
+    for d in data:
+        if d['start']['test_start']['protocol'] == 'UDP':
+            args.protocol = 'udp'
+            filename = f"{filename}.udp"
+        else:
+            args.protocol = 'tcp'
+
+        dest_path = os.path.join(dest, f"{filename}.csv")
+        with open(dest_path, 'w', newline='') as datafile:
+            datawriter = csv.writer(datafile)
+            chart(args, d, datawriter)
+
+
 def be_verbose(args, data):
     print('Version 1.0 - Feb 2019')
     print('Command arguments are {}'.format(args))
@@ -92,14 +116,10 @@ def main(argv):
     args = parser.parse_args(argv)
     try:
         with open(args.input) as f:
-            data = json.load(f)
+            data = jsonstream.load(f)
             if args.verbose:
                 be_verbose(args, data)
-            if data['start']['test_start']['protocol'] == 'UDP':
-                args.protocol = 'udp'
-            else:
-                args.protocol = 'tcp'
-            chart(args, data)
+            chart_objs(args, data)
     except:
         print(args.input)
         raise
