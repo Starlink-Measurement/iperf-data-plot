@@ -85,17 +85,21 @@ def chart_objs(args, data):
     os.makedirs(dest, exist_ok=True)
     filename = os.path.splitext(os.path.basename(args.input))[0]
 
+    count = 0
     for d in data:
+        out_filename = f"{filename}.{count}"
         if d['start']['test_start']['protocol'] == 'UDP':
             args.protocol = 'udp'
-            filename = f"{filename}.udp"
+            out_filename = f"{out_filename}.udp"
         else:
             args.protocol = 'tcp'
 
-        dest_path = os.path.join(dest, f"{filename}.csv")
+        dest_path = os.path.join(dest, f"{out_filename}.csv")
         with open(dest_path, 'w', newline='') as datafile:
             datawriter = csv.writer(datafile)
             chart(args, d, datawriter)
+
+        count += 1
 
 
 def be_verbose(args, data):
