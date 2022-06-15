@@ -88,6 +88,9 @@ def chart_objs(args, data):
     count = 0
     for d in data:
         out_filename = f"{filename}.{count}"
+        if 'error' in d:
+            print('Error in file:', args.input)
+            continue
         if d['start']['test_start']['protocol'] == 'UDP':
             args.protocol = 'udp'
             out_filename = f"{out_filename}.udp"
