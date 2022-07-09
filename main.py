@@ -6,6 +6,8 @@ import argparse
 import csv
 import os
 
+import traceback
+
 
 def ema(data, window):
     if len(data) < window + 2:
@@ -19,6 +21,11 @@ def ema(data, window):
         ema.append(ema[i-1] + alpha*(data[i]-ema[i-1]))
     return ema
 
+COL_SEND_CWND = 'snd_cwnd'
+COL_RTT = 'rtt'
+COL_RTTVAR = 'rttvar'
+COL_RETRANSMITS = 'retransmits'
+COL_PARAID = 'parallel ID'
 
 def chart(args, data, datawriter):
     # Setting the default values
@@ -36,23 +43,41 @@ def chart(args, data, datawriter):
     debit = []
     intervals = data['intervals']
 
-    if args.protocol == 'udp':
-        datawriter.writerow(['timestamp', 'bits_per_second', 'jitter_ms', 'lost_packets', 'packets', 'lost_percent']) # Headers
-    else:
-        datawriter.writerow(['timestamp', 'bits_per_second']) # Headers
+    datawriter.writerow(['timestamp', 'bits_per_second', 
+        'jitter_ms', 'lost_packets', 'packets', 'lost_percent', # UDP Headers
+        COL_SEND_CWND, COL_RTT, COL_RTTVAR, COL_RETRANSMITS, COL_PARAID]) # TCP sending Headers
 
     start_timestamp = float(data['start']['timestamp']['timesecs']) # Starting timestamp in seconds
     for i in intervals:
         sum_entry = i['sum']
+        first_stream = i['streams'][0]
+        timestamp = start_timestamp + float(sum_entry['start'])
+
+        if COL_SEND_CWND in first_stream:
+            for j, stream in enumerate(i['streams']):
+                row = []
+                row.append(timestamp)
+                row.append(stream['bits_per_second'])
+                row += [''] * 4 # UDP entries
+                row.append(stream[COL_SEND_CWND])
+                row.append(stream[COL_RTT])
+                row.append(stream[COL_RTTVAR])
+                row.append(stream[COL_RETRANSMITS])
+                row.append(j)
+                datawriter.writerow(row)
+
+            continue # Skip rest as this is TCP sending
+
         row = []
         bps = sum_entry['bits_per_second']
-        row.append(start_timestamp + float(sum_entry['start'])) # Timestamp
+        row.append(timestamp) # Timestamp
         row.append(bps)
         if args.protocol == 'udp' and 'jitter_ms' in sum_entry:
             row.append(sum_entry['jitter_ms'])
             row.append(sum_entry['lost_packets'])
             row.append(sum_entry['packets'])
             row.append(sum_entry['lost_percent'])
+
         datawriter.writerow(row)
         #debit.append(bps)
 
@@ -79,6 +104,8 @@ def chart(args, data, datawriter):
 
 
 def chart_objs(args, data):
+    V_TEST_START = 'test_start'
+
     dest = 'csv_files'
     if args.output:
         dest = args.output
@@ -88,14 +115,24 @@ def chart_objs(args, data):
     count = 0
     for d in data:
         out_filename = f"{filename}.{count}"
+        start = d['start']
+        if not V_TEST_START in start:
+            print("Error in", args.input)
+            if 'error' in d:
+                print(' ', d['error'])
+            else:
+                print(' ', 'Unknown error')
+            continue
+
         try:
-            if d['start']['test_start']['protocol'] == 'UDP':
+            if d['start'][V_TEST_START]['protocol'] == 'UDP':
                 args.protocol = 'udp'
                 out_filename = f"{out_filename}.udp"
             else:
                 args.protocol = 'tcp'
-        except:
+        except Exception:
             print("Error in", args.input)
+            traceback.print_exc()
             continue
 
         dest_path = os.path.join(dest, f"{out_filename}.csv")
