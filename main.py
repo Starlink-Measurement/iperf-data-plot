@@ -26,6 +26,7 @@ COL_RTT = 'rtt'
 COL_RTTVAR = 'rttvar'
 COL_RETRANSMITS = 'retransmits'
 COL_PARAID = 'parallel ID'
+COL_BYTES = 'bytes'
 
 def chart(args, data, datawriter):
     # Setting the default values
@@ -43,7 +44,7 @@ def chart(args, data, datawriter):
     debit = []
     intervals = data['intervals']
 
-    datawriter.writerow(['timestamp', 'bits_per_second', 
+    datawriter.writerow(['timestamp', 'bits_per_second', COL_BYTES,
         'jitter_ms', 'lost_packets', 'packets', 'lost_percent', # UDP Headers
         COL_SEND_CWND, COL_RTT, COL_RTTVAR, COL_RETRANSMITS, COL_PARAID]) # TCP sending Headers
 
@@ -58,6 +59,7 @@ def chart(args, data, datawriter):
                 row = []
                 row.append(timestamp)
                 row.append(stream['bits_per_second'])
+                row.append(stream[COL_BYTES])
                 row += [''] * 4 # UDP entries
                 row.append(stream[COL_SEND_CWND])
                 row.append(stream[COL_RTT])
@@ -72,6 +74,7 @@ def chart(args, data, datawriter):
         bps = sum_entry['bits_per_second']
         row.append(timestamp) # Timestamp
         row.append(bps)
+        row.append(sum_entry[COL_BYTES])
         if args.protocol == 'udp' and 'jitter_ms' in sum_entry:
             row.append(sum_entry['jitter_ms'])
             row.append(sum_entry['lost_packets'])
