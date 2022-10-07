@@ -27,6 +27,8 @@ COL_RTTVAR = 'rttvar'
 COL_RETRANSMITS = 'retransmits'
 COL_PARAID = 'parallel ID'
 COL_BYTES = 'bytes'
+COL_LOCAL_HOST = 'local_host'
+COL_REMOTE_HOST = 'remote_host'
 
 def chart(args, data, datawriter):
     # Setting the default values
@@ -44,11 +46,13 @@ def chart(args, data, datawriter):
     debit = []
     intervals = data['intervals']
 
-    datawriter.writerow(['timestamp', 'bits_per_second', COL_BYTES,
+    datawriter.writerow(['timestamp', 'bits_per_second', COL_BYTES, COL_LOCAL_HOST, COL_REMOTE_HOST,
         'jitter_ms', 'lost_packets', 'packets', 'lost_percent', # UDP Headers
         COL_SEND_CWND, COL_RTT, COL_RTTVAR, COL_RETRANSMITS, COL_PARAID]) # TCP sending Headers
 
     start_timestamp = float(data['start']['timestamp']['timesecs']) # Starting timestamp in seconds
+    local_host = data['start']['connected'][0][COL_LOCAL_HOST]
+    remote_host = data['start']['connected'][0][COL_REMOTE_HOST]
     for i in intervals:
         sum_entry = i['sum']
         first_stream = i['streams'][0]
@@ -60,6 +64,8 @@ def chart(args, data, datawriter):
                 row.append(timestamp)
                 row.append(stream['bits_per_second'])
                 row.append(stream[COL_BYTES])
+                row.append(local_host)
+                row.append(remote_host)
                 row += [''] * 4 # UDP entries
                 row.append(stream[COL_SEND_CWND])
                 row.append(stream[COL_RTT])
@@ -75,6 +81,8 @@ def chart(args, data, datawriter):
         row.append(timestamp) # Timestamp
         row.append(bps)
         row.append(sum_entry[COL_BYTES])
+        row.append(local_host)
+        row.append(remote_host)
         if args.protocol == 'udp' and 'jitter_ms' in sum_entry:
             row.append(sum_entry['jitter_ms'])
             row.append(sum_entry['lost_packets'])
